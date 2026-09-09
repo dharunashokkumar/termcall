@@ -1,0 +1,37 @@
+name = "termcall"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# One Durable Object per room, named by the room code. SQLite-backed, which is
+# what the free plan offers -- `new_sqlite_classes` below is the difference
+# between this deploying on free and being rejected as a paid feature.
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+# TURN relays video for the ~15% of networks that peer-to-peer cannot cross.
+# It is deliberately absent here: with no credentials set the Worker serves
+# STUN only, which costs nothing and covers everyone else. Set them when a
+# relay exists:
+#   npx wrangler secret put TURN_URL     # turn:host:3478
+#   npx wrangler secret put TURN_USER
+#   npx wrangler secret put TURN_PASS
+
+[observability]
+enabled = true
+
+[[routes]]
+pattern = "call.dharun.dev"
+custom_domain = true
+
+# The install scripts are served as text, baked into the Worker at build time
+# rather than fetched from anywhere at runtime.
+[[rules]]
+type = "Text"
+globs = ["**/*.sh", "**/*.ps1"]
+fallthrough = false

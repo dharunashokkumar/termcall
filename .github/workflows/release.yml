@@ -1,0 +1,55 @@
+name: release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: the release tag to attach binaries to
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    # Everything is built on one machine. Go cross-compiles, and the bundled
+    # ffmpeg is just a file being embedded, so no target needs its own runner.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: build every target with ffmpeg inside
+        env:
+          VERSION: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -eu
+          mkdir -p dist
+          for t in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            os=${t%/*}; arch=${t#*/}
+            ext=""; [ "$os" = windows ] && ext=".exe"
+            echo "::group::$os/$arch"
+            ./tools/fetch-ffmpeg.sh "$os" "$arch"
+            GOOS=$os GOARCH=$arch go build \
+              -tags embedffmpeg \
+              -ldflags "-s -w -X main.version=$VERSION" \
+              -o "dist/tc_${os}_${arch}${ext}" ./cmd/tc
+            ls -lh "dist/tc_${os}_${arch}${ext}"
+            echo "::endgroup::"
+          done
+          # ffmpeg is GPL and travels with the binaries that carry it.
+          cp internal/video/FFMPEG-LICENSE.txt dist/
+          cp NOTICE dist/
+          (cd dist && sha256sum * > SHA256SUMS)
+          cat dist/SHA256SUMS
+
+      - name: attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$VERSION" dist/* --clobber

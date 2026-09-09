@@ -1,0 +1,14 @@
+termcall bundles a static build of FFmpeg inside its release binaries.
+
+FFmpeg is licensed under the GNU General Public License, version 3. It is
+executed as a separate program -- termcall starts it and reads its output --
+and is not linked into termcall, so the two remain separately licensed:
+termcall is MIT, the bundled FFmpeg is GPLv3.
+
+The FFmpeg licence text ships alongside each release as FFMPEG-LICENSE.txt.
+FFmpeg source is available from https://ffmpeg.org/download.html, and the
+particular builds bundled here come from
+https://github.com/eugeneware/ffmpeg-static (release b6.1.1).
+
+Building termcall without `-tags embedffmpeg` produces a binary that carries
+no FFmpeg at all and uses whatever is installed on the machine.

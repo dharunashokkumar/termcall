@@ -1,0 +1,130 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  client:
+    # The client has platform-specific camera code and terminal handling, so
+    # "it compiles on Linux" proves very little. Every supported OS builds and
+    # runs the tests.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: gofmt
+        shell: bash
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "these files are not gofmt'd:"
+            echo "$out"
+            exit 1
+          fi
+
+      - run: go vet ./...
+      - run: go build ./...
+
+      # No TC_HOST, so the integration tests skip. Nothing in CI needs a
+      # Cloudflare account or a webcam.
+      - run: go test ./... -count=1
+
+      - name: the binary starts and refuses a pipe
+        shell: bash
+        env:
+          RUNNER_OS_NAME: ${{ runner.os }}
+        run: |
+          # Go does not append .exe when -o names the file explicitly, and
+          # Windows will not execute a PE without the extension.
+          BIN=tcbin
+          if [ "$RUNNER_OS_NAME" = "Windows" ]; then BIN=tcbin.exe; fi
+          go build -o "$BIN" ./cmd/tc
+
+          "./$BIN" -version
+          "./$BIN" -h 2>&1 | grep -q "chat rooms and ASCII video calls"
+
+          # Refusing a pipe is the intended behaviour and exits non-zero, so
+          # the status is deliberately discarded and the message checked.
+          out=$("./$BIN" < /dev/null 2>&1 || true)
+          case "$out" in
+            *"needs a terminal"*) echo "ok: $out" ;;
+            *) echo "expected 'needs a terminal', got: $out"; exit 1 ;;
+          esac
+
+  cross:
+    # Every published target must build from one machine. If this breaks, the
+    # single-binary release story is gone.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - name: cross-compile every release target
+        run: |
+          for t in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            echo "--- $t"
+            GOOS=${t%/*} GOARCH=${t#*/} go build -o /dev/null ./cmd/tc
+          done
+
+  worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run check
+      # Bundles the Worker exactly as a deploy would, without deploying. Needs
+      # no Cloudflare credentials.
+      - run: npx wrangler deploy --dry-run --outdir /tmp/build
+
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shell syntax
+        run: |
+          sh -n worker/src/install.sh
+          sh -n tools/fetch-ffmpeg.sh
+      - name: powershell syntax
+        shell: pwsh
+        run: |
+          $e = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "worker/src/install.ps1", [ref]$null, [ref]$e) | Out-Null
+          if ($e.Count) { $e; exit 1 }
+      - name: the installers still carry their placeholder
+        # The Worker substitutes __HOST__ at request time. Lose it and the
+        # scripts install from nowhere.
+        run: |
+          grep -q '__HOST__' worker/src/install.sh
+          grep -q '__HOST__' worker/src/install.ps1
+      - name: no CRLF in shipped scripts
+        # A CR in a shell script breaks it on the machine that runs it, and
+        # the failure reads as nonsense.
+        run: |
+          for f in worker/src/install.sh tools/fetch-ffmpeg.sh; do
+            if grep -qU $'\r' "$f"; then
+              echo "$f has CRLF line endings"
+              exit 1
+            fi
+          done

@@ -1,0 +1,18 @@
+{
+  "name": "termcall-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Signalling and chat relay for termcall, on one Cloudflare Worker.",
+  "license": "MIT",
+  "author": "Dharun Ashokkumar",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail",
+    "check": "node --check src/index.js && node --check src/room.js && node --check src/limits.js && node --check src/ui.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.130.0"
+  }
+}

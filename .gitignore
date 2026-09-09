@@ -1,0 +1,15 @@
+node_modules/
+.wrangler/
+dist/
+
+# The built binary, at the repo root only. Unanchored, "tc" would also match
+# the cmd/tc directory and quietly drop main.go from the repo.
+/tc
+/tc.exe
+*.tgz
+
+# Put in place by CI (or tools/fetch-ffmpeg.sh) for -tags embedffmpeg builds.
+internal/video/ffmpeg.bin.gz
+
+# Fetched per-build by tools/fetch-ffmpeg.sh, alongside ffmpeg.bin.gz.
+internal/video/FFMPEG-LICENSE.txt
