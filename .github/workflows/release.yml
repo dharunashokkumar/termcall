@@ -34,7 +34,7 @@ jobs:
             os=${t%/*}; arch=${t#*/}
             ext=""; [ "$os" = windows ] && ext=".exe"
             echo "::group::$os/$arch"
-            ./tools/fetch-ffmpeg.sh "$os" "$arch"
+            sh tools/fetch-ffmpeg.sh "$os" "$arch"
             GOOS=$os GOARCH=$arch go build \
               -tags embedffmpeg \
               -ldflags "-s -w -X main.version=$VERSION" \

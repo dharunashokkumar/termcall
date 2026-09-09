@@ -141,6 +141,13 @@ shown to people; IDs address peers and are never displayed.
 Unanchored, `tc` also matches the `cmd/tc/` directory and silently drops
 `main.go` from the repository.
 
+**Shell scripts need their execute bit set in git explicitly.** The main
+development machine is Windows, where git does not track file modes, so
+`chmod +x` locally changes nothing that gets committed and the script lands
+in CI unrunnable (`Permission denied`, exit 126). Use
+`git update-index --chmod=+x <path>` when adding one. Workflows invoke them
+as `sh tools/whatever.sh` so the bit is not load-bearing either way.
+
 **The installers must keep `__HOST__`.** The Worker substitutes it per
 request, so a fork deployed anywhere installs itself from where it is actually
 running. CI checks the placeholder is still there, and that neither script has
